@@ -1,0 +1,40 @@
+{
+  "id": "ink-black",
+  "name": "Ink Black",
+  "brand": "Gateron",
+  "author": "tplai",
+  "license": {
+    "type": "MIT",
+    "url": "https://github.com/tplai/kbsim/blob/master/LICENSE.md"
+  },
+  "groups": {
+    "default": {
+      "down": [
+        "1.wav",
+        "2.wav",
+        "3.wav",
+        "4.wav",
+        "5.wav"
+      ],
+      "up": [
+        "101.wav"
+      ]
+    },
+    "space": {
+      "down": [
+        "201.wav"
+      ],
+      "up": [
+        "251.wav"
+      ]
+    },
+    "enter": {
+      "down": [
+        "301.wav"
+      ],
+      "up": [
+        "351.wav"
+      ]
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "id": "orochi-v2",
+  "name": "Orochi V2",
+  "brand": "Razer",
+  "author": "Sadiquecat",
+  "license": {
+    "type": "CC0",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/"
+  },
+  "groups": {
+    "left": {
+      "down": [
+        "1.wav"
+      ],
+      "up": [
+        "2.wav"
+      ]
+    },
+    "right": {
+      "down": [
+        "3.wav"
+      ],
+      "up": [
+        "4.wav"
+      ]
+    }
+  }
+}

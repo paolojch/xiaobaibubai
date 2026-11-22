@@ -1,0 +1,64 @@
+{
+  "id": "blue-abs",
+  "name": "Blue ABS",
+  "brand": "Cherry MX",
+  "author": "mechvibes",
+  "license": {
+    "type": "MIT",
+    "url": "https://github.com/hainguyents13/mechvibes/blob/main/LICENSE"
+  },
+  "groups": {
+    "default": {
+      "down": [
+        "20.wav",
+        "21.wav",
+        "22.wav",
+        "23.wav",
+        "24.wav"
+      ],
+      "up": []
+    },
+    "space": {
+      "down": [
+        "57.wav"
+      ],
+      "up": []
+    },
+    "enter": {
+      "down": [
+        "28.wav"
+      ],
+      "up": []
+    },
+    "del": {
+      "down": [
+        "14.wav"
+      ],
+      "up": []
+    },
+    "tab": {
+      "down": [
+        "15.wav"
+      ],
+      "up": []
+    },
+    "shiftLeft": {
+      "down": [
+        "42.wav"
+      ],
+      "up": []
+    },
+    "shiftRight": {
+      "down": [
+        "54.wav"
+      ],
+      "up": []
+    },
+    "ctrlLeft": {
+      "down": [
+        "29.wav"
+      ],
+      "up": []
+    }
+  }
+}

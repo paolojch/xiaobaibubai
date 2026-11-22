@@ -1,0 +1,7 @@
+Open-source mechanical keyboard & mouse sound packs sourced from ayangweb/BongoCat (thock-soundpacks registry):
+
+keyboard/blue-abs: Cherry MX Blue ABS by mechvibes (MIT - https://github.com/hainguyents13/mechvibes/blob/main/LICENSE)
+keyboard/holy-panda: Drop Holy Panda by tplai (MIT - https://github.com/tplai/kbsim/blob/master/LICENSE.md)
+keyboard/alpaca: Durock Alpaca by tplai (MIT - https://github.com/tplai/kbsim/blob/master/LICENSE.md)
+keyboard/ink-black: Gateron Ink Black by tplai (MIT - https://github.com/tplai/kbsim/blob/master/LICENSE.md)
+mouse/orochi-v2: Razer Orochi V2 by Sadiquecat (CC0 - https://creativecommons.org/publicdomain/zero/1.0/)
