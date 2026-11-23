@@ -29,6 +29,13 @@ WM_MBUTTONUP = 0x0208
 WM_QUIT = 0x0012
 
 LLKHF_EXTENDED = 0x01
+LLKHF_UP = 0x80
+SM_SWAPBUTTON = 23
+
+VK_LBUTTON = 0x01
+VK_RBUTTON = 0x02
+VK_MBUTTON = 0x04
+VK_PACKET = 0xE7
 
 LRESULT = ctypes.c_ssize_t
 WPARAM = ctypes.c_size_t
@@ -104,6 +111,19 @@ VK_BUBBLE_ICONS: dict[int, str] = {
     0xA4: "⌥",
     0xA5: "⌥",
 }
+
+
+def is_ignored_vk(vk: int) -> bool:
+    """Return True for non-keyboard, synthetic, or extended F13-F24 VKs that cause phantom holds."""
+    if vk <= 0 or vk >= 0xFF:
+        return True
+    if 0x01 <= vk <= 0x06:
+        return True
+    if 0x7C <= vk <= 0x87:  # F13-F24 (commonly injected by remote/anti-sleep/gesture software)
+        return True
+    if vk == VK_PACKET:
+        return True
+    return False
 
 
 def vk_to_label(vk: int, flags: int = 0) -> str:
@@ -276,6 +296,36 @@ class GlobalInputHook(QObject):
             self._thread.join(timeout=1.0)
             self._thread = None
 
+    @staticmethod
+    def is_vk_pressed(vk: int) -> bool | None:
+        """Query OS-level live key state; returns None when unsupported on current platform."""
+        if sys.platform != "win32":
+            return None
+        try:
+            return bool(ctypes.windll.user32.GetAsyncKeyState(int(vk)) & 0x8000)
+        except Exception:
+            return None
+
+    @staticmethod
+    def is_mouse_button_pressed(button: str) -> bool | None:
+        """Query OS-level live mouse button state (respecting swapped primary/secondary buttons)."""
+        if sys.platform != "win32":
+            return None
+        try:
+            user32 = ctypes.windll.user32
+            swapped = bool(user32.GetSystemMetrics(SM_SWAPBUTTON))
+            if button == "left":
+                vk = VK_RBUTTON if swapped else VK_LBUTTON
+            elif button == "right":
+                vk = VK_LBUTTON if swapped else VK_RBUTTON
+            elif button == "middle":
+                vk = VK_MBUTTON
+            else:
+                return None
+            return bool(user32.GetAsyncKeyState(vk) & 0x8000)
+        except Exception:
+            return None
+
     def _run_loop_pynput(self) -> None:
         try:
             from pynput import keyboard, mouse
@@ -285,7 +335,7 @@ class GlobalInputHook(QObject):
 
         def emit_key(key, is_down: bool) -> None:
             vk = _pynput_key_to_vk(key)
-            if vk is None:
+            if vk is None or is_ignored_vk(vk):
                 return
             label = vk_to_label(vk, 0)
             bubble = vk_to_bubble_label(vk, 0)
@@ -361,11 +411,12 @@ class GlobalInputHook(QObject):
                 info = ctypes.cast(l_param, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
                 if w_param in (WM_KEYDOWN, WM_SYSKEYDOWN, WM_KEYUP, WM_SYSKEYUP):
                     vk = int(info.vkCode)
-                    flags = int(info.flags)
-                    label = vk_to_label(vk, flags)
-                    bubble = vk_to_bubble_label(vk, flags)
-                    is_down = w_param in (WM_KEYDOWN, WM_SYSKEYDOWN)
-                    self.key_event.emit(vk, label, bubble, is_down)
+                    if not is_ignored_vk(vk):
+                        flags = int(info.flags)
+                        label = vk_to_label(vk, flags)
+                        bubble = vk_to_bubble_label(vk, flags)
+                        is_down = w_param in (WM_KEYDOWN, WM_SYSKEYDOWN) and not (flags & LLKHF_UP)
+                        self.key_event.emit(vk, label, bubble, is_down)
             return user32.CallNextHookEx(None, n_code, w_param, l_param)
 
         def mouse_callback(n_code: int, w_param: int, l_param: int) -> int:

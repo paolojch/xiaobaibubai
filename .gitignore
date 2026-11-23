@@ -12,6 +12,7 @@ venv/
 # 本地配置、网页演示及参考原图（不随桌面源码上传）
 config.json
 index.html
+index/
 image/
 
 # 安全加固：严格屏蔽所有环境变量、密钥、证书、凭据与本地日志

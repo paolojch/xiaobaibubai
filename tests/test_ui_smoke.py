@@ -2,8 +2,10 @@
 
 import os
 import tempfile
+import time
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
@@ -138,6 +140,53 @@ class TestUiSmoke(unittest.TestCase):
 
         pet._anim_timer.stop()
         pet.close()
+        app.processEvents()
+
+    def test_reconcile_stuck_inputs_auto_releases_missing_keyup(self) -> None:
+        from src.main import BongoCatController
+
+        app = QApplication.instance() or QApplication([])
+        cfg = PetConfig(show_keycap_hud=True)
+        with (
+            patch("src.main.load_config", return_value=cfg),
+            patch("src.main.QSystemTrayIcon"),
+        ):
+            ctrl = BongoCatController(app)
+        ctrl._stuck_guard_timer.stop()
+        ctrl.pet_window._anim_timer.stop()
+        ctrl.hud_window._timer.stop()
+
+        now = int(time.monotonic() * 1000)
+        # Simulate LWin (0x5B) held & stuck without KEYUP, plus 'W' genuinely held
+        ctrl.state_machine.on_key_down(0x5B, now - 250, bubble_label="⌘")
+        ctrl.hud_window.on_key_event(0x5B, "Win", True)
+        ctrl.hud_window._held_vk_times[0x5B] = now - 250
+
+        ctrl.state_machine.on_key_down(ord("W"), now - 250, bubble_label="W")
+        ctrl.hud_window.on_key_event(ord("W"), "W", True)
+        ctrl.hud_window._held_vk_times[ord("W")] = now - 250
+
+        # Simulate a freshly pressed key (< 120ms) that shouldn't be reconciled yet
+        ctrl.state_machine.on_key_down(ord("E"), now - 20, bubble_label="E")
+        ctrl.state_machine.on_mouse_button("right", True, now - 250)
+
+        with (
+            patch.object(ctrl.hook, "is_vk_pressed", side_effect=lambda vk: vk == ord("W")),
+            patch.object(ctrl.hook, "is_mouse_button_pressed", return_value=False),
+        ):
+            ctrl._reconcile_stuck_inputs()
+
+        held_vks = {vk for vk, _ in ctrl.state_machine.held_keys_snapshot()}
+        self.assertNotIn(0x5B, held_vks)
+        self.assertIn(ord("W"), held_vks)
+        self.assertIn(ord("E"), held_vks)
+        self.assertNotIn(0x5B, ctrl.hud_window._held_vks)
+        self.assertIn(ord("W"), ctrl.hud_window._held_vks)
+        self.assertEqual(ctrl.state_machine.held_mouse_buttons_snapshot(), [])
+
+        ctrl.sound_engine.close()
+        ctrl.pet_window.close()
+        ctrl.hud_window.close()
         app.processEvents()
 
 

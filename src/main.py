@@ -8,7 +8,7 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import QDir, QLockFile, QPoint, Qt
+from PySide6.QtCore import QDir, QLockFile, QPoint, Qt, QTimer
 from PySide6.QtGui import QGuiApplication, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
@@ -17,7 +17,7 @@ if not getattr(sys, "frozen", False) and str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from src.config import get_resource_root, load_config, save_config
-from src.input_hook import GlobalInputHook
+from src.input_hook import GlobalInputHook, vk_to_label
 from src.keycap_hud import KeycapHudWindow
 from src.pet_window import CatPetWindow
 from src.rig import get_key_spec
@@ -80,6 +80,11 @@ class BongoCatController:
         self._last_cursor_gx: int | None = None
         self._last_cursor_gy: int | None = None
         self._setup_tray()
+
+        self._stuck_guard_timer = QTimer(self.app)
+        self._stuck_guard_timer.setInterval(100)
+        self._stuck_guard_timer.timeout.connect(self._reconcile_stuck_inputs)
+        self._stuck_guard_timer.start()
 
     def _place_initial_windows(self) -> None:
         screen = self.app.primaryScreen()
@@ -243,6 +248,39 @@ class BongoCatController:
             now, dir_x=dir_x, dir_y=dir_y, local_norm=local_norm, screen_norm=screen_norm
         )
 
+    def _reconcile_stuck_inputs(self) -> None:
+        """Auto-release keys/buttons whose UP event was lost (e.g. lock screen, UAC, UIPI focus switch)."""
+        now = int(time.monotonic() * 1000)
+        grace_ms = 120
+
+        sm_held = self.state_machine.held_keys_snapshot()
+        hud_held = self.hud_window.held_keys_snapshot()
+        if sm_held or hud_held:
+            released_vks: dict[int, str] = {}
+            for vk, pressed_ms in sm_held:
+                if (now - pressed_ms) >= grace_ms and self.hook.is_vk_pressed(vk) is False:
+                    released_vks[vk] = vk_to_label(vk, 0)
+            for vk, label, pressed_ms in hud_held:
+                if (
+                    vk not in released_vks
+                    and (now - pressed_ms) >= grace_ms
+                    and self.hook.is_vk_pressed(vk) is False
+                ):
+                    released_vks[vk] = label
+
+            for vk, label in released_vks.items():
+                self.state_machine.on_key_up(vk, now)
+                self.hud_window.on_key_event(vk, label, False)
+
+        for btn, pressed_ms in self.state_machine.held_mouse_buttons_snapshot():
+            if (now - pressed_ms) >= grace_ms and self.hook.is_mouse_button_pressed(btn) is False:
+                self.state_machine.on_mouse_button(btn, False, now)
+
+        head_down, head_ms = self.state_machine.head_press_state()
+        if head_down and (now - head_ms) >= grace_ms:
+            if self.hook.is_mouse_button_pressed("left") is False:
+                self.state_machine.on_head_click(False, now)
+
     def _reset_inputs(self) -> None:
         self.state_machine.reset_inputs()
         self.hud_window.reset_keys()
@@ -252,6 +290,7 @@ class BongoCatController:
         self.hook.start()
 
     def quit(self) -> None:
+        self._stuck_guard_timer.stop()
         self.hook.stop()
         self.sound_engine.close()
         save_config(self.config)

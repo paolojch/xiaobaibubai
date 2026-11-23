@@ -37,6 +37,7 @@ class KeycapHudWindow(QWidget):
 
         self._badges: list[KeyBadge] = []
         self._held_vks: dict[int, str] = {}
+        self._held_vk_times: dict[int, int] = {}
         self._dragging = False
         self._drag_offset = QPoint()
         self._opacity_alpha = 0.0
@@ -63,6 +64,7 @@ class KeycapHudWindow(QWidget):
         if not enabled:
             self._badges.clear()
             self._held_vks.clear()
+            self._held_vk_times.clear()
             self.hide()
 
     def set_click_through(self, enabled: bool) -> None:
@@ -117,6 +119,7 @@ class KeycapHudWindow(QWidget):
                 self._last_event_ms = now
                 return
             self._held_vks[vk] = label
+            self._held_vk_times[vk] = now
             self._last_event_ms = now
 
             if self._is_modifier(vk):
@@ -144,14 +147,23 @@ class KeycapHudWindow(QWidget):
             self.update()
         else:
             self._held_vks.pop(vk, None)
+            self._held_vk_times.pop(vk, None)
             for b in self._badges:
                 if b.held and (b.text == label or b.text.endswith(f" + {label}") or (self._is_modifier(vk) and label in b.text)):
                     b.held = False
                     b.released_ms = now
             self._last_event_ms = now
 
+    def held_keys_snapshot(self) -> list[tuple[int, str, int]]:
+        """Return [(vk, label, pressed_ms), ...] for currently held HUD keys."""
+        return [
+            (vk, label, self._held_vk_times.get(vk, self._last_event_ms))
+            for vk, label in self._held_vks.items()
+        ]
+
     def reset_keys(self) -> None:
         self._held_vks.clear()
+        self._held_vk_times.clear()
         now = int(time.monotonic() * 1000)
         for b in self._badges:
             if b.held:

@@ -59,6 +59,11 @@ class KeyPressState:
     pressed_ms: int
     held: bool = True
     released_ms: int = 0
+    first_pressed_ms: int | None = None
+
+    def __post_init__(self) -> None:
+        if self.first_pressed_ms is None:
+            self.first_pressed_ms = self.pressed_ms
 
 
 @dataclass
@@ -125,6 +130,7 @@ class CatStateMachine:
 
     # Mouse & cursor states
     _mouse_buttons: set[str] = field(default_factory=set)
+    _mouse_button_press_ms: dict[str, int] = field(default_factory=dict)
     _last_key_time_ms: int = -10000
     _last_mouse_time_ms: int = -10000
     _mouse_glance_until_ms: int = -1
@@ -258,9 +264,12 @@ class CatStateMachine:
 
     def on_mouse_button(self, button: str, down: bool, now_ms: int) -> None:
         if down:
+            if button not in self._mouse_buttons:
+                self._mouse_button_press_ms[button] = now_ms
             self._mouse_buttons.add(button)
         else:
             self._mouse_buttons.discard(button)
+            self._mouse_button_press_ms.pop(button, None)
         prev_activity = self._last_activity_ms
         self._last_mouse_time_ms = now_ms
         self._mouse_glance_until_ms = now_ms + self.mouse_glance_ms
@@ -336,12 +345,28 @@ class CatStateMachine:
         if self.petting_enabled:
             self._pet_until_ms = max(self._pet_until_ms, now_ms + 650)
 
+    def held_keys_snapshot(self) -> list[tuple[int, int]]:
+        """Return [(vk, first_pressed_ms), ...] for currently held keys."""
+        return [
+            (vk, st.first_pressed_ms if st.first_pressed_ms is not None else st.pressed_ms)
+            for vk, st in self._held_keys.items()
+        ]
+
+    def held_mouse_buttons_snapshot(self) -> list[tuple[str, int]]:
+        """Return [(button, pressed_ms), ...] for currently held mouse buttons."""
+        return [(btn, self._mouse_button_press_ms.get(btn, 0)) for btn in self._mouse_buttons]
+
+    def head_press_state(self) -> tuple[bool, int]:
+        """Return (head_pressed, press_ms)."""
+        return self._head_pressed, self._head_press_ms
+
     def reset_inputs(self) -> None:
         for st in self._held_keys.values():
             st.held = False
             st.released_ms = 0
         self._held_keys.clear()
         self._mouse_buttons.clear()
+        self._mouse_button_press_ms.clear()
         self._last_viewer_left_key = None
         self._last_viewer_right_key = None
         self._mouse_glance_until_ms = -1

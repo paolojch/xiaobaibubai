@@ -2,7 +2,7 @@
 
 import unittest
 
-from src.input_hook import vk_to_bubble_label, vk_to_label
+from src.input_hook import is_ignored_vk, vk_to_bubble_label, vk_to_label
 from src.rig import MIRRORED_KEY_LAYOUT, get_key_spec
 from src.state_machine import CatStateMachine, HandSide, classify_vk_side
 
@@ -288,6 +288,31 @@ class TestStateMachine(unittest.TestCase):
                 right_mx, right_my = cur.mouse_dx, cur.mouse_dy
         self.assertGreater(right_mx - far_left_mx, 0.8)
         self.assertGreater(right_my - far_left_my, 0.7)
+
+    def test_ignored_virtual_keys_and_held_snapshots(self) -> None:
+        # F13-F24 (including F22=0x85), VK_PACKET, mouse VKs, and reserved bounds must be ignored
+        for ignored in (0x00, 0x01, 0x02, 0x7C, 0x85, 0x87, 0xE7, 0xFF):
+            self.assertTrue(is_ignored_vk(ignored), f"Expected vk={hex(ignored)} to be ignored")
+        for allowed in (ord("A"), 0x20, 0x5B, 0x5C, 0x70, 0x7B, 0xA0, 0xA2, 0xA4):
+            self.assertFalse(is_ignored_vk(allowed), f"Expected vk={hex(allowed)} to be allowed")
+
+        sm = CatStateMachine(blink_enabled=False)
+        sm.on_key_down(0x5B, 1000, bubble_label="⌘")
+        # OS auto-repeat updates pressed_ms, while first_pressed_ms preserves initial press timestamp
+        sm.on_key_down(0x5B, 1400, bubble_label="⌘")
+        self.assertEqual(sm.held_keys_snapshot(), [(0x5B, 1000)])
+
+        sm.on_mouse_button("left", True, 1100)
+        self.assertEqual(sm.held_mouse_buttons_snapshot(), [("left", 1100)])
+        sm.on_head_click(True, 1200)
+        self.assertEqual(sm.head_press_state(), (True, 1200))
+
+        sm.on_key_up(0x5B, 1500)
+        sm.on_mouse_button("left", False, 1500)
+        sm.on_head_click(False, 1500)
+        self.assertEqual(sm.held_keys_snapshot(), [])
+        self.assertEqual(sm.held_mouse_buttons_snapshot(), [])
+        self.assertFalse(sm.head_press_state()[0])
 
 
 if __name__ == "__main__":
